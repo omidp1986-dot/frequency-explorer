@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<title>Frequency Explorer | آزمایشگاه صوتی</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#121e30;--line:#26364d;--txt:#e8f0fa;--muted:#9aabc0;--cyan:#48d9e8;--violet:#a78bfa;--green:#54d69a;--red:#ff7272}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(160deg,#101d31,#080d17 65%);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:22px 16px 14px;max-width:1100px;margin:auto}h1{margin:0;font-size:25px;letter-spacing:.2px}header p{color:var(--muted);margin:7px 0 0;font-size:13px;line-height:1.8}
+main{max-width:1100px;margin:auto;padding:0 14px 35px;display:grid;gap:13px}
+.panel{background:rgba(18,30,48,.94);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 12px 30px #0003}
+.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}
+button,select,input{font:inherit}button{border:1px solid #38506d;background:#1a2b42;color:var(--txt);padding:10px 14px;border-radius:11px;cursor:pointer}
+button.primary{background:#087f91;border-color:#16b5c4;font-weight:700}button.stop{background:#49242b;border-color:#88404a}button:disabled{opacity:.45;cursor:not-allowed}
+select,input[type=number]{background:#0b1524;border:1px solid #344760;color:var(--txt);border-radius:9px;padding:8px;max-width:100%}
+label{color:var(--muted);font-size:13px;display:grid;gap:6px}input[type=range]{width:100%;accent-color:var(--cyan)}
+.status{font-size:12px;color:var(--muted);padding:7px 10px;border-radius:9px;background:#0b1524}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#718096;margin-left:6px}.dot.live{background:var(--green);box-shadow:0 0 10px var(--green)}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.metric{background:#0b1524;border:1px solid #26364d;border-radius:12px;padding:10px;min-width:0}.metric small{display:block;color:var(--muted);font-size:11px}.metric strong{font-size:19px;display:block;margin-top:5px;overflow-wrap:anywhere}
+canvas{width:100%;display:block;background:#07101c;border:1px solid #24364d;border-radius:10px;touch-action:pan-y}
+h2{font-size:16px;margin:0 0 12px}.hint{font-size:12px;color:var(--muted);line-height:1.8}.controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.peaks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.peak{padding:9px;background:#0b1524;border-radius:9px;font-size:13px;display:flex;justify-content:space-between;gap:8px}
+footer{text-align:center;color:var(--muted);font-size:11px;padding:4px 12px 22px}
+@media(min-width:760px){main{grid-template-columns:1fr 1fr}.wide{grid-column:1/-1}.metrics{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:430px){.metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.metric strong{font-size:15px}.controls{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+ <div class="row between"><div><h1>🔬 Frequency Explorer</h1><p>آزمایشگاه قابل‌حمل تحلیل صدا | نسخهٔ آزمایشی ۱٫۰</p></div><span class="status"><span id="dot" class="dot"></span><span id="state">آمادهٔ شروع</span></span></div>
+</header>
+<main>
+<section class="panel wide">
+ <div class="row">
+  <button id="start" class="primary">🎙 شروع تحلیل زنده</button>
+  <button id="stop" class="stop" disabled>توقف</button>
+  <button id="save" disabled>ذخیره CSV</button>
+  <span id="permission" class="hint">برای شروع، اجازهٔ دسترسی میکروفون را بدهید.</span>
+ </div>
+ <p class="hint">برای دسترسی میکروفون، این صفحه باید در بستر امن HTTPS یا localhost باز شود. در صورت اجرا از فایل محلی، ممکن است مرورگر اجازه ندهد.</p>
+</section>
+<section class="panel wide">
+ <h2>نمایشگر زندهٔ طیف فرکانسی (FFT)</h2>
+ <canvas id="spectrum" height="260"></canvas>
+ <div class="row between hint"><span id="rangeLabel">بازه: 0–24,000 Hz</span><span>محور عمودی: شدت نسبی dBFS</span></div>
+</section>
+<section class="panel wide">
+ <h2>طیف‌نگار آبشاری (Spectrogram)</h2>
+ <canvas id="waterfall" height="190"></canvas>
+ <p class="hint">رنگ روشن‌تر یعنی انرژی بیشتر در آن فرکانس و زمان.</p>
+</section>
+<section class="panel">
+ <h2>شکل موج (Waveform)</h2>
+ <canvas id="wave" height="135"></canvas>
+ <p class="hint">نمایش دامنهٔ سیگنال در طول زمان.</p>
+</section>
+<section class="panel">
+ <h2>اندازه‌گیری لحظه‌ای</h2>
+ <div class="metrics">
+  <div class="metric"><small>قوی‌ترین فرکانس</small><strong id="peak">—</strong></div>
+  <div class="metric"><small>سطح سیگنال</small><strong id="level">—</strong></div>
+  <div class="metric"><small>نرخ نمونه‌برداری</small><strong id="rate">—</strong></div>
+ </div>
+ <p class="hint" id="hardware">اطلاعات سخت‌افزار پس از شروع نمایش داده می‌شود.</p>
+</section>
+<section class="panel">
+ <h2>تنظیمات تحلیل</h2>
+ <div class="controls">
+  <label>حد پایین فرکانس (Hz)<input id="minHz" type="number" min="0" max="100000" value="0"></label>
+  <label>حد بالای فرکانس (Hz)<input id="maxHz" type="number" min="1" max="100000" value="24000"></label>
+  <label>اندازه FFT<select id="fft"><option>2048</option><option selected>4096</option><option>8192</option><option>16384</option></select></label>
+  <label>حساسیت نمایش (dBFS)<input id="floor" type="range" min="-110" max="-25" value="-95"><span id="floorVal">-95 dBFS</span></label>
+ </div>
+ <p class="hint">FFT بزرگ‌تر تفکیک فرکانسی بهتر ولی واکنش کندتر می‌دهد. بازهٔ قابل‌اندازه‌گیری به نرخ نمونه‌برداری و سخت‌افزار وابسته است.</p>
+ <button id="apply">اعمال تنظیمات</button>
+</section>
+<section class="panel">
+ <h2>قله‌های شناسایی‌شده</h2>
+ <div id="peaks" class="peaks"><div class="hint">پس از شروع تحلیل نمایش داده می‌شود.</div></div>
+</section>
+<section class="panel wide">
+ <h2>محدودیت‌های ورودی صوتی</h2>
+ <p class="hint" id="limits">حداکثر فرکانس نظری پس از اتصال میکروفون محاسبه می‌شود.</p>
+ <p class="hint">نکته: حداکثر فرکانس نظری برابر نصف نرخ نمونه‌برداری است (حد نایکوئیست)، اما پاسخ واقعی میکروفون ممکن است زودتر افت کند. بسیاری از میکروفون‌های گوشی برای فراصوت طراحی نشده‌اند. این برنامه صدای خارج از محدودهٔ سخت‌افزار را بازیابی یا حدس نمی‌زند.</p>
+</section>
+</main>
+<footer>پردازش در مرورگر انجام می‌شود؛ صدا به سرور ارسال نمی‌شود. برای اندازه‌گیری کالیبره‌شده به میکروفون و تجهیزات مرجع نیاز است.</footer>
+<script>
+(()=> {
+ const $=id=>document.getElementById(id);
+ const canvases={s:$('spectrum'),w:$('wave'),f:$('waterfall')};
+ const ctxs={s:canvases.s.getContext('2d'),w:canvases.w.getContext('2d'),f:canvases.f.getContext('2d')};
+ let stream=null,audio=null,analyser=null,source=null,raf=0,freq=null,time=null,history=[],rows=150,columns=512;
+ let records=[],lastRecord=0,actualMax=0;
+ const fmt=n=>n>=1000?(n/1000).toFixed(n>=10000?1:2)+' kHz':n.toFixed(1)+' Hz';
+ function setupCanvas(c,ctx){const dpr=Math.min(devicePixelRatio||1,2),w=c.clientWidth,h=c.clientHeight;c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);return [w,h]}
+ function drawGrid(ctx,w,h,min,max){ctx.clearRect(0,0,w,h);ctx.fillStyle='#07101c';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#1c2d42';ctx.lineWidth=1;ctx.fillStyle='#8da2ba';ctx.font='10px system-ui';for(let i=0;i<=4;i++){let y=8+(h-24)*i/4;ctx.beginPath();ctx.moveTo(34,y);ctx.lineTo(w-8,y);ctx.stroke();ctx.fillText((i*25)+'%',4,y+3)}for(let i=0;i<=4;i++){let x=34+(w-42)*i/4;ctx.beginPath();ctx.moveTo(x,8);ctx.lineTo(x,h-16);ctx.stroke();ctx.fillText(Math.round(min+(max-min)*i/4),x-12,h-3)}}
+ function getBounds(){let ny=actualMax||24000,min=Math.max(0,Number($('minHz').value)||0),max=Math.min(ny,Number($('maxHz').value)||ny);if(max<=min)max=min+1;return {min,max}}
+ function drawSpectrum(){
+  const [w,h]=setupCanvas(canvases.s,ctxs.s),ctx=ctxs.s,{min,max}=getBounds();drawGrid(ctx,w,h,min,max);
+  if(!analyser||!freq)return;
+  let sr=audio.sampleRate,bin=sr/analyser.fftSize,start=Math.max(0,Math.floor(min/bin)),end=Math.min(freq.length-1,Math.ceil(max/bin)),floor=Number($('floor').value);
+  let peakBin=-1,peakDb=-Infinity,peakVal=0;
+  ctx.beginPath();ctx.lineWidth=2;ctx.strokeStyle='#48d9e8';
+  for(let i=start;i<=end;i++){let db=freq[i],x=34+(i*bin-min)/(max-min)*(w-42),y=8+(1-Math.max(0,Math.min(1,(db-floor)/(0-floor))))*(h-24);if(i===start)ctx.moveTo(x,y);else ctx.lineTo(x,y);if(db>peakDb){peakDb=db;peakBin=i;peakVal=db}}
+  ctx.stroke();
+  if(peakBin>=0){let hz=peakBin*bin;$('peak').textContent=fmt(hz);ctx.fillStyle='#a78bfa';let x=34+(hz-min)/(max-min)*(w-42);ctx.beginPath();ctx.arc(x,8+(1-Math.max(0,Math.min(1,(peakVal-floor)/(0-floor))))*(h-24),4,0,Math.PI*2);ctx.fill()}
+  $('rangeLabel').textContent=`بازه: ${Math.round(min)}–${Math.round(max)} Hz`;
+  updatePeaks(start,end,bin);
+ }
+ function drawWave(){const [w,h]=setupCanvas(canvases.w,ctxs.w),ctx=ctxs.w;ctx.fillStyle='#07101c';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#1c2d42';ctx.beginPath();ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();if(!analyser||!time)return;analyser.getByteTimeDomainData(time);ctx.strokeStyle='#54d69a';ctx.lineWidth=1.5;ctx.beginPath();for(let i=0;i<time.length;i++){let x=i/(time.length-1)*w,y=time[i]/255*h;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.stroke()}
+ function drawFall(){const [w,h]=setupCanvas(canvases.f,ctxs.f),ctx=ctxs.f;ctx.fillStyle='#07101c';ctx.fillRect(0,0,w,h);if(!history.length)return;let {min,max}=getBounds(),sr=audio.sampleRate,bin=sr/analyser.fftSize,floor=Number($('floor').value);for(let r=0;r<history.length;r++){let row=history[r],y=h-(r+1)*h/rows;for(let x=0;x<columns;x++){let hz=min+(x/columns)*(max-min),idx=Math.round(hz/bin);if(idx>=0&&idx<row.length){let v=Math.max(0,Math.min(1,(row[idx]-floor)/(0-floor)));let hue=190-v*155;ctx.fillStyle=`hsl(${hue} 85% ${8+v*48}%)`;ctx.fillRect(x*w/columns,y,w/columns+1,h/rows+1)}}}}
+ function updatePeaks(start,end,bin){if(!freq)return;let found=[];for(let i=Math.max(1,start);i<Math.min(end,freq.length-1);i++){if(freq[i]>freq[i-1]&&freq[i]>=freq[i+1]&&freq[i]>Number($('floor').value)+8)found.push({hz:i*bin,db:freq[i]})}found.sort((a,b)=>b.db-a.db);$('peaks').innerHTML=found.slice(0,8).map(p=>`<div class="peak"><b>${fmt(p.hz)}</b><span>${p.db.toFixed(1)} dBFS</span></div>`).join('')||'<div class="hint">قلهٔ مشخصی بالاتر از آستانه پیدا نشد.</div>'}
+ function loop(){if(!analyser)return;analyser.getFloatFrequencyData(freq);analyser.getByteTimeDomainData(time);drawSpectrum();drawWave();if(performance.now()-lastRecord>100){history.unshift(new Float32Array(freq));if(history.length>rows)history.pop();lastRecord=performance.now();drawFall();let sum=0;for(let v of time){let z=(v-128)/128;sum+=z*z}let rms=Math.sqrt(sum/time.length);$('level').textContent=(20*Math.log10(Math.max(rms,1e-7))).toFixed(1)+' dBFS';let now=Date.now();if(!records.length||now-records[records.length-1].t>250){let maxI=0;for(let i=1;i<freq.length;i++)if(freq[i]>freq[maxI])maxI=i;records.push({t:now,peak_hz:maxI*audio.sampleRate/analyser.fftSize,peak_db:freq[maxI],rms_db:20*Math.log10(Math.max(rms,1e-7))})}}raf=requestAnimationFrame(loop)}
+ async function start(){try{if(!navigator.mediaDevices?.getUserMedia)throw Error('مرورگر یا بستر اجرا از میکروفون پشتیبانی نمی‌کند؛ صفحه را با HTTPS باز کنید.');stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});audio=new (window.AudioContext||window.webkitAudioContext)();await audio.resume();source=audio.createMediaStreamSource(stream);analyser=audio.createAnalyser();analyser.fftSize=Number($('fft').value);analyser.smoothingTimeConstant=.25;source.connect(analyser);freq=new Float32Array(analyser.frequencyBinCount);time=new Uint8Array(analyser.fftSize);actualMax=audio.sampleRate/2;$('rate').textContent=audio.sampleRate.toLocaleString()+' Hz';$('hardware').textContent='کانال: '+(stream.getAudioTracks()[0]?.getSettings().channelCount||'نامشخص')+' | ورودی: '+(stream.getAudioTracks()[0]?.label||'میکروفون');$('limits').textContent=`نرخ نمونه‌برداری ${audio.sampleRate.toLocaleString()} نمونه/ثانیه است؛ حد نایکوئیست نظری ${actualMax.toLocaleString()} Hz است. این عدد تضمین‌کنندهٔ پاسخ میکروفون در آن فرکانس نیست.`;if(Number($('maxHz').value)>actualMax)$('maxHz').value=Math.floor(actualMax);$('dot').classList.add('live');$('state').textContent='در حال تحلیل';$('permission').textContent='میکروفون فعال است';$('start').disabled=true;$('stop').disabled=false;$('save').disabled=false;history=[];records=[];loop()}catch(e){$('permission').textContent=e.message||String(e);$('state').textContent='خطا در شروع';}}
+ async function stop(){cancelAnimationFrame(raf);if(stream)stream.getTracks().forEach(t=>t.stop());if(audio)await audio.close();stream=audio=analyser=source=null;freq=time=null;$('dot').classList.remove('live');$('state').textContent='متوقف';$('start').disabled=false;$('stop').disabled=true}
+ $('start').onclick=start;$('stop').onclick=stop;$('apply').onclick=()=>{if(analyser){analyser.fftSize=Number($('fft').value);freq=new Float32Array(analyser.frequencyBinCount);time=new Uint8Array(analyser.fftSize);history=[]}drawSpectrum()};$('floor').oninput=()=> $('floorVal').textContent=$('floor').value+' dBFS';
+ $('save').onclick=()=>{if(!records.length)return;let csv='timestamp,peak_frequency_hz,peak_level_dbfs,rms_dbfs\n'+records.map(r=>`${new Date(r.t).toISOString()},${r.peak_hz.toFixed(2)},${r.peak_db.toFixed(2)},${r.rms_db.toFixed(2)}`).join('\n');let a=document.createElement('a'),url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.href=url;a.download='frequency-analysis.csv';a.click();URL.revokeObjectURL(url)};
+ let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{drawSpectrum();drawWave();drawFall()},120)});drawSpectrum();drawWave();drawFall();
+})();
+</script>
+</body></html>
